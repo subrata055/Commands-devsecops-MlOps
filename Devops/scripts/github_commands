@@ -1,0 +1,104 @@
+Git & GitHub DevOps Command Reference Cheat Sheet
+Comprehensive Markdown README reference containing setup, workflows, and line-by-line explanations for DevOps engineering.
+Quick Copy & Paste Reference
+Below is a single consolidated script format containing all standard DevOps Git operations in sequential order:
+# ==========================================
+# GIT & GITHUB DEVOPS COMPLETE REFERENCE
+# ==========================================
+# 1. INITIAL SETUP & CONFIGURATION
+git config --global user.name "Your Name"
+git config --global user.email "your.email@example.com"
+git config --global init.defaultBranch main
+git config --global core.editor "vim"
+git config --global core.autocrlf input
+# 2. REPOSITORY INITIALIZATION & CLONING
+git init
+git clone git@github.com:org/repo.git
+git clone -b dev git@github.com:org/repo.git
+git clone --depth 1 git@github.com:org/repo.git
+# 3. STAGING, COMMITTING & HISTORY
+git status
+git add .
+git commit -m "feat: add dockerfile for microservice"
+git commit --amend --no-edit
+git log --oneline --graph --decorate --all
+# 4. BRANCHING & REBASE STRATEGIES
+git branch -a
+git switch -c feature/jira-1234
+git switch main
+git merge feature/jira-1234
+git rebase main
+git branch -d feature/jira-1234
+# 5. REMOTE SYNC & UPSTREAM
+git remote -v
+git remote add upstream git@github.com:original-org/repo.git
+git fetch origin
+git pull --rebase origin main
+git push -u origin feature/jira-1234
+git push origin --delete feature/jira-1234
+# 6. UNDOING CHANGES & TROUBLESHOOTING
+git restore --staged filename.txt
+git restore filename.txt
+git stash
+git stash pop
+git revert <commit-hash>
+git reset --soft HEAD~1
+# 7. TAGGING & RELEASES
+git tag -a v1.0.0 -m "Release version 1.0.0"
+git push origin v1.0.0
+# 8. GITHUB CLI AUTOMATION
+gh pr create --title "feat: pipeline update" --body "Added helm deployment steps"
+
+gh release create v1.0.0 --generate-notes
+gh workflow run deploy-prod.yml
+Detailed Command Breakdown & Justification
+Command Why & When We Use It
+git config --global
+
+Sets author identity and environment defaults globally across all local repos. Essential for
+tracking commit ownership in audit logs.
+
+git clone --depth 1
+
+Performs a shallow clone fetching only the latest commit. Reduces pipeline build times and
+network bandwidth in CI/CD runners.
+
+git commit --amend --no-edit
+
+Appends staged changes to the previous commit without changing the message. Cleanly
+updates PRs without clogging history with minor fixes.
+
+git log --oneline --graph
+
+Renders a concise, visual branch topology in terminal to inspect merge histories and active
+development branches.
+
+git rebase main
+
+Applies local commits on top of updated upstream main branch, maintaining a clean, linear git
+history before merging pull requests.
+
+git pull --rebase
+
+Fetches remote commits and replays unpushed local work over them, avoiding cluttering git
+history with unnecessary merge commits.
+
+git revert <hash>
+
+Generates a new commit that safely reverses changes from a specified commit. Ideal and safe
+for production branch rollback.
+
+git reset --soft HEAD~1
+
+Undoes the last commit while keeping modified files staged, allowing commits to be
+restructured or rephrased before pushing.
+
+git tag -a v1.0.0
+
+Creates a cryptographically signed/annotated release tag. Used by deployment tools (ArgoCD,
+Jenkins) to trigger image builds and releases.
+
+gh workflow run
+
+Triggers GitHub Actions workflows directly from CLI/terminal without logging into the web
+interface.
