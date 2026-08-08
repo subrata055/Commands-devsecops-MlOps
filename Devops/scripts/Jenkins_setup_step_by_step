@@ -1,1 +1,58 @@
+1. First I need to clone the repository in the server: git clone -b Dev https://github.com/subrata055/3-Tier-DevSecOps-Mega-Project.git
+2. cd 3-Tier-DevSecOps-Mega-Project
+3. docker compose up --build -d
+the project will start running. 
 
+NOW I need to setup jenkins server:
+plugins to install: ocean blue, stage view, sonarqube, 
+1. go to Manage jenkins >> plugins >> available plugins >> search and install >> restart jenkins. 
+2. To create github credentials: Manage jenkins >> credentials >> global credentials >> username password >> give username and give github token insted of password >> create
+3. Add the jenkins user to the docker group: sudo usermod -aG docker jenkins && sudo systemctl restart jenkins
+
+4. create pipeline >> scm >> select the github token >> give repo url >> branch >> Jenkinsfile.
+5. run the build.
+
+
+
+Step 1: now we need to setup the sonarqube:
+1. Install sonarqube using docker: 
+
+docker run -d --name sonarqube \
+  -p 9000:9000 \
+  -v sonarqube_data:/opt/sonarqube/data \
+  -v sonarqube_extensions:/opt/sonarqube/extensions \
+  -v sonarqube_logs:/opt/sonarqube/logs \
+  sonarqube:community
+
+
+2. Remove the old corrupted volumes: docker volume rm sonarqube_data sonarqube_extensions sonarqube_logs
+3. Access SonarQube at http://<your-ec2-ip>:9000 (Default credentials: username admin, password admin).
+4. Ensure Port 9000 is allowed in your EC2 Security Group.
+
+Step 2: Generate SonarQube Token & Configure Webhook:
+5. Create Token: In SonarQube, go to User Icon >> My Account >> Security >> Generate Token. Name it "jenkins-token" and copy it.
+6. Setup Webhook (Required for Quality Gate): In SonarQube, go to Administration >> Configuration >> Webhooks >> Create.
+   Name: Jenkins-Webhook
+   URL: http://<your-jenkins-ip>:8080/sonarqube-webhook/
+   Click Create.
+
+
+Step 3: Configure Jenkins Credentials & Plugins:
+1. Install plugins in Jenkins: SonarQube Scanner and Pipeline Utility Steps (via Manage Jenkins > Plugins).
+2. Save Token in Jenkins: Go to Manage Jenkins >> Credentials >> System >> Global credentials >> Add Credentials.
+3. Kind: Secret text  >> Secret: Paste your SonarQube token >> ID: sq-token
+
+4. Link SonarQube Server in Jenkins: Go to Manage Jenkins >> System (or Configure System).
+5. Scroll down to SonarQube servers >> Check Environment variables >> Click Add SonarQube 
+   Name: SonarQube-Server (Must match the name used in your Jenkinsfile)
+   Server URL: http://localhost:9000 (or http://<your-ec2-ip>:9000)
+   Server authentication token: Select sq-token
+
+6. Register Scanner Tool: Go to Manage Jenkins >> Tools
+7. Scroll to SonarQube Scanner >> Click Add SonarQube Scanner >> Name: SonarScanner (Must match the tool name in your Jenkinsfile) >>  Check Install automatically.
+
+
+Step 4: Create sonar-project.properties in Repository Root
+1. 
+
+   
