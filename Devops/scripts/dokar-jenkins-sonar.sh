@@ -73,15 +73,15 @@ sudo sysctl -w vm.max_map_count=524288
 echo "vm.max_map_count=524288" | sudo tee -a /etc/sysctl.conf
 
 # Remove any existing stopped sonarqube container
-sudo docker rm -f sonarqube || true
+# sudo docker rm -f sonarqube || true
 
 # Run active SonarQube Community image
-sudo docker run -d --name sonarqube \
-  -p 9000:9000 \
-  -v sonarqube_data:/opt/sonarqube/data \
-  -v sonarqube_extensions:/opt/sonarqube/extensions \
-  -v sonarqube_logs:/opt/sonarqube/logs \
-  sonarqube:community
+# sudo docker run -d --name sonarqube \
+#   -p 9000:9000 \
+#   -v sonarqube_data:/opt/sonarqube/data \
+#   -v sonarqube_extensions:/opt/sonarqube/extensions \
+#   -v sonarqube_logs:/opt/sonarqube/logs \
+#   sonarqube:community
 
 echo "==============================================="
 echo "==> Installation & Deployment Complete!"
