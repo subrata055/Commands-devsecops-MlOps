@@ -87,7 +87,7 @@ echo "==============================================="
 echo "==> Installation & Deployment Complete!"
 echo "==============================================="
 echo "Jenkins URL:   http://<your-server-ip>:8080"
-echo "SonarQube URL: http://<your-server-ip>:9000 (Default: admin/admin)"
+#echo "SonarQube URL: http://<your-server-ip>:9000 (Default: admin/admin)"
 echo ""
 echo "Initial Jenkins Admin Password:"
 sudo cat /var/lib/jenkins/secrets/initialAdminPassword || true
