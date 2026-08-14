@@ -1,0 +1,237 @@
+# Attach an IAM Role to your EC2 Instance (Recommended)
+1. Go to the AWS IAM Console > Roles > Create Role.
+2. Select AWS Service > EC2.
+3. Attach the necessary permissions policies:
+4. AdministratorAccess (or a custom policy granting permissions to EKS, CloudFormation, EC2, IAM, VPC).
+5. Name the role (e.g., EKS-Management-EC2-Role) and create it.
+6. Go to the AWS EC2 Console > Instances > Select your EC2 instance.
+7. Click Actions > Security > Modify IAM role.
+8. Select EKS-Management-EC2-Role and click Update IAM role.
+
+# Step 1: To create eks cluster using eksctl:
+
+eksctl create cluster \
+  --name prod-cluster \
+  --region us-east-1 \
+  --version 1.34 \
+  --without-nodegroup
+
+
+# Step 2: Get Your Cluster's OIDC Issuer URL You will get an output: copy it
+
+aws eks describe-cluster \
+  --name prod-cluster \
+  --region us-east-1 \
+  --query "cluster.identity.oidc.issuer" \
+  --output text
+
+
+# Step 3: Create the OIDC Provider in AWS Console (Manual):
+
+1. Open the AWS IAM Console.
+2. In the left navigation pane, click Identity providers.
+3. Click Add provider.
+4. Configure the provider details:
+5. Provider type: Select OpenID Connect.
+6. Provider URL: Paste the URL copied in Step 2 (e.g., [https://oidc.eks.us-east-1.amazonaws.com/id/](https://oidc.eks.us-east-1.amazonaws.com/id/)...).
+7. Audience: Type sts.amazonaws.com (exact match).
+8. Click Get thumbprint (AWS will verify the certificate).
+9. Click Add provider.
+
+
+# Step 4: Create the Worker Node Group:
+
+eksctl create nodegroup \
+  --cluster prod-cluster \
+  --region us-east-1 \
+  --name prod-workers \
+  --node-type t3.medium \
+  --nodes 1 \
+  --nodes-min 1 \
+  --nodes-max 3 \
+  --managed
+
+# Step 5: Configure kubectl & Verify the Cluster: Connect your CLI tool to the new cluster:
+
+# 1. Update local kubeconfig context
+aws eks update-kubeconfig --name prod-cluster --region us-east-1
+
+# 2. Check worker node status
+kubectl get nodes
+
+
+# Step 6: Deploy Application Components Step-by-Step
+# 6.1 Create the Namespace:
+
+kubectl create namespace three-tier-app
+
+# 6.2 Deploy the Database (MySQL): Create the Persistent Volume Claim for data storage:
+
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc
+  namespace: three-tier-app
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+EOF
+
+
+# Now Deploy the MySQL container:
+
+cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: three-tier-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: subratasikdar2021/mysql:latest
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: "RootPassword@123"
+            - name: MYSQL_DATABASE
+              value: "appdb"
+            - name: MYSQL_USER
+              value: "dbuser"
+            - name: MYSQL_PASSWORD
+              value: "DbPassword@123"
+          ports:
+            - containerPort: 3306
+          volumeMounts:
+            - name: mysql-storage
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: mysql-storage
+          persistentVolumeClaim:
+            claimName: mysql-pvc
+EOF
+
+
+# Create a headless/internal service so the backend can reach MySQL by DNS name mysql-svc:
+
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-svc
+  namespace: three-tier-app
+spec:
+  selector:
+    app: mysql
+  ports:
+    - port: 3306
+      targetPort: 3306
+  clusterIP: None
+EOF
+
+
+# 6.3 Deploy the Backend API:
+
+cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: three-tier-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: subratasikdar2021/3-tier-devsecops-backend:latest
+          env:
+            - name: DB_HOST
+              value: "mysql-svc"
+            - name: DB_NAME
+              value: "appdb"
+            - name: DB_USER
+              value: "dbuser"
+            - name: DB_PASSWORD
+              value: "DbPassword@123"
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-svc
+  namespace: three-tier-app
+spec:
+  type: ClusterIP
+  selector:
+    app: backend
+  ports:
+    - port: 8080
+      targetPort: 8080
+EOF
+
+
+# 6.4 Deploy the Frontend UI:
+
+cat <<EOF | kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: three-tier-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: subratasikdar2021/3-tier-devsecops-frontend:latest
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-svc
+  namespace: three-tier-app
+spec:
+  type: LoadBalancer
+  selector:
+    app: frontend
+  ports:
+    - port: 80
+      targetPort: 80
+EOF
+
+
+# Check all pods status
+kubectl get pods -n three-tier-app -o wide
+
+# Check services and obtain the public Load Balancer URL
+kubectl get svc -n three-tier-app
+
