@@ -270,3 +270,31 @@ kubectl get pods -n three-tier-app -o wide
 # Check services and obtain the public Load Balancer URL
 kubectl get svc -n three-tier-app
 
+
+Fix backend problem: Waiting for MySQL (users table)... Retries left: 30
+========================================================================
+# Get the active MySQL pod name
+MYSQL_POD=$(kubectl get pod -n three-tier-app -l app=mysql -o jsonpath='{.items[0].metadata.name}')
+
+# Check databases and tables inside appdb
+kubectl exec -it $MYSQL_POD -n three-tier-app -- mysql -u root -pRootPassword@123 -e "SHOW DATABASES; USE appdb; SHOW TABLES;"
+
+# Initialize the Missing Table
+
+kubectl exec -i $(kubectl get pod -n three-tier-app -l app=mysql -o jsonpath='{.items[0].metadata.name}') -n three-tier-app -- mysql -u root -pRootPassword@123 appdb <<EOF
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+EOF
+
+
+# Grant User Privileges: 
+kubectl exec -i $(kubectl get pod -n three-tier-app -l app=mysql -o jsonpath='{.items[0].metadata.name}') -n three-tier-app -- mysql -u root -pRootPassword@123 -e "GRANT ALL PRIVILEGES ON appdb.* TO 'dbuser'@'%'; FLUSH PRIVILEGES;"
+
+# Restart Backend: 
+kubectl rollout restart deployment/backend -n three-tier-app
+kubectl logs -l app=backend -n three-tier-app -f
+
