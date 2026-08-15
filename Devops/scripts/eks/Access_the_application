@@ -1,0 +1,6 @@
+
+# Option 1: Access via AWS LoadBalancer (Public Access):
+kubectl get svc frontend-svc -n three-tier-app -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+
+# Option 2: Access via Port-Forwarding (Instant / Local Testing):
+kubectl port-forward svc/frontend-svc 8080:80 -n three-tier-app --address 0.0.0.0
