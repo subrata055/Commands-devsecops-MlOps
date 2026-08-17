@@ -2,12 +2,63 @@
 aws eks update-kubeconfig --name prod-cluster --region us-east-1
 kubectl get nodes
 
+Update the IMDS Hop Limit to 2 on Worker Nodes:
+for id in $(aws ec2 describe-instances \
+  --filters "Name=tag:aws:eks:cluster-name,Values=prod-cluster" "Name=instance-state-name,Values=running" \
+  --query "Reservations[*].Instances[*].InstanceId" \
+  --output text \
+  --region us-east-1); do
+    echo "Updating IMDSv2 hop limit to 2 for instance: $id"
+    aws ec2 modify-instance-metadata-options \
+      --instance-id "$id" \
+      --http-put-response-hop-limit 2 \
+      --http-endpoint enabled \
+      --region us-east-1
+done
+
 2. First I need to install argo cd in eks cluster:
 kubectl create namespace argocd
+kubectl create namespace three-tier-app
 kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
-3. Expose ArgoCD UI via LoadBalancer:
-kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}'
+3. Create ServiceAccount in kube-system: 
+kubectl create serviceaccount aws-load-balancer-controller -n kube-system
+
+3.1. Install load balancer controller using helm:
+
+VPC_ID=$(aws eks describe-cluster --name prod-cluster --region us-east-1 --query "cluster.resourcesVpcConfig.vpcId" --output text)
+# 3.2.  Install / Upgrade the Helm chart with explicit region & VPC
+helm repo add eks https://aws.github.io/eks-charts
+helm repo update
+helm upgrade -i aws-load-balancer-controller eks/aws-load-balancer-controller \
+  -n kube-system \
+  --set clusterName=prod-cluster \
+  --set serviceAccount.create=false \
+  --set serviceAccount.name=aws-load-balancer-controller \
+  --set region=us-east-1 \
+  --set vpcId=$VPC_ID
+
+4. Verify Controller Health: 
+kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller
+
+Restart the AWS Load Balancer Controller Pod:
+kubectl rollout restart deployment aws-load-balancer-controller -n kube-system
+
+5. Deploy Shared Ingress Rules:
+kubectl apply -f k8s-prod/ingress.yaml
+kubectl apply -f k8s-prod/argocd-ingress.yaml
+
+6. Retrieve the Load Balancer Hostname:
+kubectl get ingress -A
+kubectl get ingress -A -w
+
+
+7. Configure DNS Records
+In your GoDaddy DNS dashboard, map your domain names to the retrieved ALB DNS endpoint:
+
+CNAME Records: Point argocd, www, grafana, and prometheus to k8s-sharedalb-...us-east-1.elb.amazonaws.com.
+
+Root Domain Forwarding: Forward the apex root domain (@) directly to www.cloudacademy.website.
 
 4. Retrieve ArgoCD Admin Password & URL:
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
