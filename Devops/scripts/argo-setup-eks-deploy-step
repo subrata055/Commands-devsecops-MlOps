@@ -148,4 +148,32 @@ kubectl logs backend-5cdb4bc5c9-w2v59 -n three-tier-app --tail=50
 21. Check Why the New Pod is Pending:
 kubectl describe pod backend-68b69cc6-j66sk -n three-tier-app | grep -A 5 "Events:"
 
-22. 
+################################################################################
+Monitoring
+#############################################################################
+
+22: Add the Prometheus Community Helm Repo:
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+23. Install the kube-prometheus-stack: (Prometheus, Grafana, Alertmanager, Node Exporter, kube-state-metrics):
+
+kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+
+helm upgrade -i kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+  -n monitoring \
+  --set grafana.adminPassword="AdminPassword123!" \
+  --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false
+
+
+24. Confirm all monitoring pods are running:
+kubectl get pods -n monitoring
+
+25. Confirm the Ingress addresses have attached to the shared ALB:
+kubectl get ingress -n monitoring
+
+26. http://grafana.cloudacademy.website
+User: admin
+Password: AdminPassword123!
+
+
