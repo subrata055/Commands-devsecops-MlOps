@@ -176,4 +176,28 @@ kubectl get ingress -n monitoring
 User: admin
 Password: AdminPassword123!
 
+27. In Grafana, click the gear icon (Connections) in the left sidebar >> Data sources.
+28. click on view configure data source >> select promethus (default) >> click test
+29. For Pre-Installed Dashboards: Dashboards >> Browse
+30. Open the Kubernetes / Compute Resources folder >> 
+    Kubernetes / Compute Resources / Cluster: Overall CPU, Memory, and Network usage of the EKS cluster.
+    Kubernetes / Compute Resources / Namespace (Pods): Select three-tier-app or argocd to monitor pod-level resource consumption.
+    Node Exporter / Nodes: Hardware performance metrics for your EC2 worker nodes.
+
+
+31. Import Community Production Dashboards (Recommended):
+    Dashboards >> New >> Import.
+    1: Node Exporter Full (Node CPU, RAM, Disk, IOPS):
+    Enter Dashboard ID: 1860
+    Under the Prometheus dropdown at the bottom, select Prometheus >> Click Import.
+
+32. Other ID we can import: 12740, 15757, 15759, 15760
+
+33. Create a Custom Metrics Panel for Your 3-Tier Application: 
+33.1. Dashboards >> New >> New Dashboard >> Add visualization >> Select the Prometheus data source.
+33.2. Under the Query tab, paste a PromQL query:
+33.3. sum(rate(container_cpu_usage_seconds_total{namespace="three-tier-app"}[5m])) by (pod)
+33.4. On the right panel, set the panel title to App Pods CPU Usage.
+33.5. Under Graph styles, choose Time series
+33.6. Click Apply in the top right corner, then click the Save icon at the top.
 
