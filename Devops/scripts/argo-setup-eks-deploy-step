@@ -201,3 +201,11 @@ Password: AdminPassword123!
 33.5. Under Graph styles, choose Time series
 33.6. Click Apply in the top right corner, then click the Save icon at the top.
 
+###############################################################################################
+# custom Dashboard creation
+###############################################################################################
+
+34. Dashboards >> New >> Import
+34.1. Paste the following JSON directly(graphana-dashboard.json) into the Import via panel json box and click Load:
+34.2. done. 
+ can create other custom dashboard using chatgpt.
