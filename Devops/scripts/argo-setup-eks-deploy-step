@@ -209,3 +209,19 @@ Password: AdminPassword123!
 34.1. Paste the following JSON directly(graphana-dashboard.json) into the Import via panel json box and click Load:
 34.2. done. 
  can create other custom dashboard using chatgpt.
+
+
+###################################################################################################
+#### Terraform Destroy
+#################################################################################################
+Before running terraform destroy command clean these things: 
+# 1. Delete all Ingresses to release the AWS ALB and Target Groups
+kubectl delete ingress -A --all
+
+# 2. Delete the namespaces to release PVs and EBS Volumes
+kubectl delete namespace three-tier-app
+kubectl delete namespace monitoring
+kubectl delete namespace argocd
+
+# 3. Wait 1-2 minutes for AWS to drain targets, then destroy Terraform infrastructure
+terraform destroy -auto-approve
