@@ -1,0 +1,87 @@
+# BMW TechWorks — Prep Answers (AWS/EC2-focused)
+
+### 1. Introduce yourself and explain your DevOps experience.
+I'm a DevOps engineer with 4+ years working across AWS infrastructure, EKS/Kubernetes, and CI/CD automation. At Navigator Software I own the CI/CD pipeline (GitHub → Trivy/SonarQube scans → build → ArgoCD deploy), manage EKS clusters, AWS cost optimization, and monitoring via Prometheus/Grafana for an insurance-domain client with ~150 pods across 8-10 microservices.
+**Follow-up to expect:** "Walk me through your tech stack end-to-end" / "What's the team size you support?"
+
+### 2. If an EC2 instance has a vulnerability, how would you identify and fix it?
+I'd use AWS Inspector (or Trivy for a manual scan) to identify the CVE, check severity and whether a patch/AMI update is available, then apply it via SSM Patch Manager or by rolling out a patched AMI through the Auto Scaling Group so instances get replaced without manual SSH.
+**Follow-up:** "What if it's a zero-day with no patch yet?" → Answer: isolate via security group (restrict inbound), apply compensating controls (WAF rule if web-facing), monitor closely until a patch ships.
+
+### 3. How do you patch EC2 instances?
+For fleets, I use SSM Patch Manager with a patch baseline and a scheduled maintenance window, so patching happens automatically without manual login. For single/critical instances I test in a non-prod environment first, then roll out during low-traffic windows.
+**Follow-up:** "How do you patch without downtime?" → Rolling patch across ASG instances one at a time, or blue/green with a new patched AMI.
+
+### 4. Can we separate disk space so the application runs on one partition and observability stack on another?
+Yes — attach a separate EBS volume, format and mount it at a distinct path (e.g. `/data/observability`), so the OS/app disk and the monitoring agent's storage (logs, metrics buffers) are physically isolated. Prevents one from filling up and starving the other.
+**Follow-up:** "What happens if the app volume fills up regardless?" → Set CloudWatch disk-usage alarms and log rotation/retention policies to prevent that in the first place.
+
+### 5. How do you perform this disk separation, and which AWS services/tools do you use?
+Attach an additional EBS volume to the instance, format it (e.g. `mkfs.ext4`), create a mount point, mount it, and add an entry in `/etc/fstab` for persistence across reboots. For more flexibility I'd use LVM so I can resize volumes later without unmounting.
+**Follow-up:** "How do you resize it live without downtime?" → Extend the EBS volume via console/CLI, then `growpart` + `resize2fs` (or `xfs_growfs`) on the running filesystem — no reboot needed.
+
+### 6. Explain the project that you migrated.
+I migrated ~15 microservices from on-premises servers to AWS EKS. I deployed each service to EKS via CI/CD while the on-prem version stayed live, validated it was healthy and serving traffic correctly, then cut over and decommissioned the on-prem instance — one service at a time to avoid a big-bang risk.
+**Follow-up:** "What was the hardest part of that migration?" → Have a specific answer ready: e.g. a service with hardcoded on-prem IPs/config, or a stateful component needing careful data sync.
+
+### 7. Have you containerized any application?
+Yes — I've written Dockerfiles for both frontend and backend services, using multi-stage builds to keep final images small, then pushed to ECR/Docker Hub as part of the CI pipeline.
+**Follow-up:** "Why multi-stage builds?" → Separates build-time dependencies from the runtime image, so the final image is smaller and has a reduced attack surface (no compilers/build tools shipped to prod).
+
+### 8. Have you set up any CI/CD pipelines on your own (not just maintained)?
+Yes, I built the pipeline from scratch for our project: GitHub trigger → Trivy filesystem scan → SonarQube quality gate → Docker build → image scan → push to registry → ArgoCD sync to EKS. I own the pipeline configuration, not just monitoring it.
+**Follow-up:** "What would you change about it if you had more time/budget?" → Have one honest improvement ready, e.g. adding automated rollback on failed health checks, or SAST earlier in the pipeline.
+
+### 9. Have you used HashiCorp Vault?
+Not directly in production — I've used AWS Secrets Manager and SSM Parameter Store for secret management, which serve a similar purpose. I understand Vault's dynamic-secrets and lease-based model conceptually and could ramp up quickly given that background.
+**Follow-up:** "What's the difference between Vault and Secrets Manager?" → Vault supports dynamic, short-lived secrets generated on-demand (e.g. temporary DB creds) and works across multi-cloud; Secrets Manager is AWS-native, simpler, with built-in rotation for supported services.
+
+### 10. Have you used Java for coding?
+Java isn't my primary language — I mainly script in Bash and Python for automation, and write pipeline configs in YAML/Groovy (Jenkinsfile). I can read Java well enough to debug build/deploy issues, but I'm not writing application-level Java code.
+**Follow-up:** "Would that be a blocker for this role?" → Frame honestly: DevOps/SRE work here is mostly infra/pipeline scripting, not app development, so clarify what level of Java the role actually needs.
+
+---
+
+# Blue Yonder — Prep Answers (Azure/AKS-focused)
+
+*Note: your hands-on depth is AWS/EKS, not Azure/AKS. Below are the correct conceptual answers — practice them, but be upfront if asked directly about production Azure experience, the same way you'd handle the Azure DevOps question. Don't claim production depth you don't have.*
+
+### 1. How do you use Azure Key Vault's secrets in AKS?
+Via the Azure Key Vault Provider for Secrets Store CSI Driver — it mounts Key Vault secrets as files directly into the pod (or syncs them into a Kubernetes Secret), so the app reads secrets without them being hardcoded or stored as plain K8s secrets.
+**Follow-up:** "Why not just use native Kubernetes Secrets?" → K8s Secrets are only base64-encoded, not encrypted at rest by default, and centralizing in Key Vault gives audit logging, rotation, and access policies AWS/Azure IAM can enforce.
+
+### 2. How will the application (pod) fetch the latest (rotated) secret from Key Vault?
+The CSI driver has a configurable rotation poll interval that re-syncs the mounted secret/K8s Secret when it changes in Key Vault. But the *pod* won't automatically pick up the new value unless the app re-reads the file, or you use a tool like Reloader to trigger a rolling pod restart when the synced Secret changes.
+**Follow-up:** "What if the app caches the secret in memory at startup?" → Then you need Reloader (or similar) to force a restart on secret change — this is the key gap people miss.
+
+### 3. How do you integrate SonarQube & Snyk in an Azure Pipeline?
+Add SonarQube and Snyk tasks/steps in the `azure-pipelines.yml` — SonarQube scan step runs `sonar-scanner` against the code and enforces a Quality Gate before proceeding; Snyk step runs `snyk test`/`snyk container test` against dependencies and images. Fail the pipeline if either gate fails.
+**Follow-up:** "What do you do when the Quality Gate fails on a hotfix that needs to ship urgently?" → Have a policy answer ready — e.g. gate can be overridden by a lead with justification, but never silently skipped.
+
+### 4. How do you secure your AKS cluster?
+Azure AD (Entra ID) integration for RBAC instead of static kubeconfig credentials, network policies to restrict pod-to-pod traffic, private cluster (no public API server endpoint), Azure Policy for pod security standards, and image scanning (Defender for Containers) before deployment.
+**Follow-up:** "How do you handle node OS patching?" → AKS node image auto-upgrade channel, or scheduled node pool upgrades during maintenance windows.
+
+### 5. How do you make your AKS cluster highly available?
+Spread node pools across multiple Availability Zones, run multiple replicas per deployment with PodDisruptionBudgets so upgrades don't take all replicas down at once, and use the Azure Load Balancer/Application Gateway in front for traffic distribution.
+**Follow-up:** "What about the control plane itself?" → AKS control plane HA is managed by Azure automatically (especially on the Standard/paid SLA tier) — worth knowing this distinction.
+
+### 6. How do you perform cost optimization in AKS?
+Cluster Autoscaler to scale nodes to actual demand, spot node pools for non-critical/batch workloads, right-sizing pod requests/limits based on actual usage (avoiding over-provisioning), and Reserved Instances/Savings Plans for baseline steady-state load.
+**Follow-up:** "How do you avoid spot node disruption breaking production workloads?" → Keep spot pools only for stateless/non-critical/dev workloads — exactly the lesson from your own EC2 spot-instance production incident, worth mentioning directly here.
+
+### 7. HPA triggers — what types have you used?
+Native HPA scales on CPU/memory via metrics-server. For anything beyond that — queue depth, custom app metrics, external events like Service Bus/Kafka lag — you need KEDA, which extends HPA with custom and external scaler triggers.
+**Follow-up:** "Give an example of a custom-metric scale scenario." → e.g. scaling a worker pod based on Azure Service Bus queue length rather than CPU, since CPU stays low while messages pile up.
+
+### 8. Stateful vs Stateless
+Stateless: no persistent local data, any replica can handle any request, easy to scale/replace (e.g. API/frontend pods). Stateful: needs stable identity, storage, and ordering (e.g. databases) — managed via StatefulSet with PersistentVolumeClaims per pod.
+**Follow-up:** "When would you deliberately use a StatefulSet instead of a managed cloud database?" → e.g. self-hosted Kafka/Elasticsearch clusters where ordered pod identity and stable storage per replica matters.
+
+### 9. How do you manage data for a stateless application?
+State is pushed out of the pod entirely — into a managed database (Azure SQL/Cosmos DB), a cache (Azure Cache for Redis), or object storage (Blob Storage) — so any pod can be killed/replaced without data loss.
+**Follow-up:** "What about user session data?" → Store sessions in Redis (or similar), not in-memory on the pod, so a pod restart doesn't log users out.
+
+### 10. How do you integrate Entra ID (Azure AD) with AKS for authentication?
+Two layers: enable AKS-managed Azure AD integration so `kubectl` access is authenticated via Entra ID and authorized through Kubernetes RBAC (no static kubeconfig secrets floating around); and separately, use Workload Identity Federation so *pods* can authenticate to Azure resources (Key Vault, Storage) using an Entra ID identity instead of stored credentials.
+**Follow-up:** "What's the difference between those two integrations?" → First is for humans/kubectl accessing the cluster; second is for pods/workloads accessing Azure services — don't conflate them if asked.
